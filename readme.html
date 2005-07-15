@@ -1,0 +1,22 @@
+<html><head><title>PyAlleg Readme</title></head><body>
+<h1>PyAlleg 0.1.1</h1>
+<p>A wrapper for the Allegro library for Python.</p>
+<h2>Setup instructions</h2>
+<h3>Compiling the extension (source packages)</h3>
+<p>You need to have</p>
+<ul>
+<li>A working Allegro 4.2 installation.</li>
+<li>Pyrex.</li>
+</ul>
+<p>Thanks to the efforts of Michael Faerber, PyAlleg is now Distutils compliant. That means you should be able to install it with</p>
+<pre>
+<code>
+python setup.py build_ext <i>--compiler=mingw32</i>
+python setup.py install
+</code>
+</pre>
+(The compiler part may or may not be unnecessary.)
+<h2>What do I need to distribute Pyalleg programs?</h2>
+<p>The Distutils dependency tracker should know what. Additionally your users need alleg42.dll on Windows, or the appropriate libraries on other platforms.</p>
+</body>
+</html>

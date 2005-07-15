@@ -1,8 +1,3 @@
-
-# WARNING! I do not guarantee the readability of this code.
-#  -akx
-
-
 license="""
 
 PyAlleg - Python wrapper for the Allegro library
@@ -24,7 +19,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 
 import time
 
-cdef extern from "all.h":
+cdef extern from "allegro.h":
 	###################################
 	ctypedef struct JOYSTICK_AXIS_INFO:
 		int pos
