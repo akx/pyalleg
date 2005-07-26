@@ -204,3 +204,12 @@ blenders=[	"alpha",	# Transparency by alpha channel.
 		"sat",
 		"screen"
 	]
+	
+# Mouse cursors.
+MOUSE_CURSOR_BITMAP=-1
+MOUSE_CURSOR_NONE=0
+MOUSE_CURSOR_ALLEGRO=1
+MOUSE_CURSOR_ARROW=2
+MOUSE_CURSOR_BUSY=3
+MOUSE_CURSOR_QUESTION=4
+MOUSE_CURSOR_EDIT=5

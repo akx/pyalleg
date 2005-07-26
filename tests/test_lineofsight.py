@@ -15,9 +15,9 @@ end=0
 white=Color(255,255,255)
 green=Color(0,192,0)
 red=Color(255,0,0)
-vn=360
-maxd=800
-dres=2
+vn=90
+maxd=200
+dres=4
 while end==0:
 	for k in range(128):
 		if keyDown(k): print k

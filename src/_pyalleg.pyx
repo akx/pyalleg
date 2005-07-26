@@ -113,6 +113,8 @@ cdef extern from "allegro.h":
 	
 	void yield_timeslice ()
 	
+	int install_timer()
+	
 	#####################################
 	
 	int install_mouse ()
@@ -297,8 +299,6 @@ cdef extern from "allegro.h":
 	void pivot_scaled_sprite (BITMAP *bmp, BITMAP *sprite, int x, int y, int cx, int cy, fixed angle, fixed scale)
 	void pivot_scaled_sprite_v_flip (BITMAP *bmp, BITMAP *sprite, int x, int y, int cx, int cy, fixed angle, fixed scale)
 	
-	#############################################
-	
 	FONT *font
 	int text_mode (int mode)
 	void textout_ex (BITMAP *bmp, FONT *f, char *str, int x, int y, int color, int bg)
@@ -322,20 +322,12 @@ cdef extern from "allegro.h":
 	void textprintf_right (BITMAP *bmp, FONT *f, int x, int y, int color, char *format, ...)
 	void textprintf_justify (BITMAP *bmp, FONT *f, int x1, int x2, int y, int diff, int color, char *format, ...)
 	void draw_character (BITMAP *bmp, BITMAP *sprite, int x, int y, int color)
- 	
-	
-	#############################################
-	## Currently not implemented: fli, gui, packfile
-	#############################################
+ 		
 	int alert (char *s1, char *s2, char *s3, char *b1, char *b2, int c1, int c2)
 	int alert3 (char *s1, char *s2, char *s3, char *b1, char *b2, char *b3, int c1, int c2, int c3)
 	int file_select_ex (char *message, char *path, char *ext, int size, int w, int h)
 	int gfx_mode_select (int *card, int *w, int *h)
 	int gfx_mode_select_ex (int *card, int *w, int *h, int *color_depth)
-	
-	#############################################
-	
-	
 		
 	SAMPLE *load_sample (char *filename)
 	int save_sample (char *filename, SAMPLE *spl)
@@ -356,13 +348,16 @@ cdef extern from "allegro.h":
 	int get_mixer_channels()
 	int get_mixer_voices()
 
-	# Voices, streams, MIDI and aud input not (yet) implemented.
-	# Most of the time you don't really need them.
+	# Voices, streams, MIDI, audio input not yet implemented. Most of the time you don't
+	# really need them. Ditto for fixeds, 3D drawing (OpenGL, anyone?), FLI and packfile.
+	# As for the GUI, somehow the callback-style Allegro GUI isn't Pythonic enough. We
+	# probably need to make a better one. :)
 	# File functions omitted, Python's got better ones.
-	# Ditto for fixeds et al.
+	
+	int COLORCONV_TOTAL
 
 version="-- unknown --"
-wrapperVersion="0.1.1"
+wrapperVersion="0.1.2"
 
 
 
@@ -379,7 +374,7 @@ class AllegroError(PyallegError):
 class WrapperError(PyallegError):
 	pass
 	
-def debug(s): pass #print "(pyalleg debug): "+s
+def debug(s): print "(pyalleg debug): "+s
 
 sc=None
 cdef public int nMouseB
@@ -449,7 +444,7 @@ cdef class AbstractBitmap:
 	def triangle(self,x1,y1,x2,y2,x3,y3,c):
 		triangle(self.bmp,x1,y1,x2,y2,x3,y3,c)
 		
-	def polygon(self,lpoints,c,filled=1):
+	def polygon(self,lpoints,c):
 		cdef int points[1000]
 		l=len(lpoints)
 		if l>500: l=500
@@ -580,12 +575,11 @@ cdef class Bitmap(AbstractBitmap):
 
 	def __dealloc__(self):
 		if self.bmp!=NULL:
-			debug("deallocing bitmap: "+str(self)+"!")
+			debug("Deallocating bitmap: "+str(self))
 			allegro_init()	# ugly-ish kludge.. *shrug*
 			destroy_bitmap(self.bmp)
 		else:
-			debug("bitmap already deallocd: "+str(self)+"!")
-		debug("finished")
+			debug("Bitmap already deallocated: "+str(self))
 
 		
 cdef class FileBitmap(AbstractBitmap):
@@ -594,17 +588,14 @@ cdef class FileBitmap(AbstractBitmap):
 		self.bmp=load_bitmap(filename,NULL)
 		if self.bmp==NULL:
 			raise AllegroError()
-			
-	def __dealloc__(self):
-		if self.bmp!=NULL:
-			destroy_bitmap(self.bmp)			
+		
 			
 def loadBitmap(filename):
 	return FileBitmap(filename)
 
 cdef class ScreenBitmap(AbstractBitmap):
 	def __new__(self):
-		debug("Creating screen bitmap")
+		debug("Creating screen bitmap...")
 		self.bmp=screen
 	
 	def __dealloc__(self):
@@ -612,6 +603,11 @@ cdef class ScreenBitmap(AbstractBitmap):
 		
 	def size(self):
 		return SCREEN_W,SCREEN_H,VIRTUAL_W,VIRTUAL_H
+		
+	def acquire(self):
+		acquire_screen()
+	def release(self):
+		release_screen()
 
 ##############################################################################
                                ## Font ##
@@ -623,11 +619,14 @@ cdef class Font:
 	def __new__(self,filename=""):
 		if filename!="":
 			self.f=load_font(filename,NULL,NULL)
+			if self.f==NULL:
+				raise AllegroError()
 		else:
 			self.f=font
 	
 	def __dealloc__(self):
 		if self.f!=NULL and self.f!=font:
+			debug("Deallocating font: "+str(self))
 			allegro_init()
 			destroy_font(self.f)
 
@@ -652,6 +651,9 @@ cdef class Font:
 
 	def width(self,text):
 		return text_length(self.f,text)
+		
+def loadFont(filename):
+	return Font(filename)
 
 ##############################################################################
                               ## Sound ##
@@ -732,8 +734,8 @@ def initKeyboard():
 		raise AllegroError()
 		
 def initMouse():
-	
 	debug("Initializing mouse...")
+	install_timer()
 	mb=install_mouse()
 	if mb<0:
 		raise AllegroError()
@@ -759,6 +761,7 @@ def initGfx(m,w,h,d=-1,vw=0,vh=0):
 		sc=ScreenBitmap()
 	else:
 		debug("Screen wrapper already available.")
+	
 
 def initSound():
 	if install_sound (-1,0,NULL)==-1:
@@ -795,7 +798,28 @@ def mouseB():
 
 def mouse():
 	return mouse_x,mouse_y,mouse_z,mouse_b
+
+def setHwCursor(mode):
+	if mode:
+		enable_hardware_cursor()
+	else:
+		disable_hardware_cursor()
 	
+def setMouseCursor(cursor,AbstractBitmap bmp=None):
+	if cursor>=0:
+		select_mouse_cursor(cursor)
+	else:
+		set_mouse_sprite(bmp.bmp)
+	
+def showMouse(AbstractBitmap bmp):
+	show_mouse(bmp.bmp)
+def hideMouse():
+	show_mouse(NULL)
+def scareMouse():
+	scare_mouse()
+def unscareMouse():
+	unscare_mouse()
+
 def mickeys():
 	cdef int mix,miy
 	get_mouse_mickeys(&mix,&miy)
@@ -855,14 +879,109 @@ def setTrans(a):
 def setAdd(a):
 	setBlender("add",a)
 	transMode()
-	
 
 
+
+##############################################################################
+                              ## XColor ##
+                              ############
+                              
+def __wrap(val,mi,ma):
+	while val<mi:
+		val=ma+val
+	while val>ma:
+		val=val-ma
+	return val
+	
+def __clamp(val,mi,ma):
+	if val<mi: return mi
+	if val>ma: return ma
+	return val
+class XColor:
+	def __init__(self,r=0,g=0,b=0):
+		self.r=r
+		self.g=g
+		self.b=b
+		
+	def getColor(self):
+		return Color(self.r,self.g,self.b)
+	
+	def copy(self):
+		return XColor(self.r,self.g,self.b)
+	
+	def unpack(self,color):
+		self.r=getr(color)
+		self.g=getg(color)
+		self.b=getb(color)
+		return self
+		
+	def set(self,r,g,b):
+		self.r=r
+		self.g=g
+		self.b=b
+		return self
+		
+	def setHsv(self,h,s,v):
+		self.unpack(HSVColor(h,s,v))
+		return self
+		
+	def getHsv(self):
+		return rgbHsv(self.r,self.g,self.b)
+	
+	def shift(self,pairs,gwrap=0):
+		for pair in pairs:
+			what=pair[0]
+			value=pair[1]
+			if len(pair)==3:
+				wrap=pair[2]
+			else:
+				wrap=gwrap
+			if what=="hue":
+				h,s,v=self.getHsv()
+				h=h+value
+				if wrap==1:   h=__wrap(h,0,360)
+				elif wrap==2: h=__clamp(h,0,360)
+				self.setHsv(h,s,v)
+			if what=="sat":
+				h,s,v=self.getHsv()
+				s=s+value
+				if wrap==1:   s=__wrap(s,0,1)
+				elif wrap==2: s=__clamp(s,0,1)
+				self.setHsv(h,s,v)
+			if what=="val":
+				h,s,v=self.getHsv()
+				v=v+value
+				if wrap==1:   v=__wrap(v,0,1)
+				elif wrap==2: v=__clamp(v,0,1)
+				self.setHsv(h,s,v)
+			if what=="r":
+				self.r=self.r+value
+				if wrap==1:   self.r=__wrap(self.r,0,255)
+				elif wrap==2: self.r=__clamp(self.r,0,255)
+			if what=="g":
+				self.g=self.g+value
+				if wrap==1:   self.g=__wrap(self.g,0,255)
+				elif wrap==2: self.g=__clamp(self.g,0,255)
+			if what=="b":
+				self.b=self.b+value
+				if wrap==1:   self.b=__wrap(self.b,0,255)
+				elif wrap==2: self.b=__clamp(self.b,0,255)
+		return self
+	def shift1(self,what,value,wrap=0):
+		return self.shift([(what,value,wrap)],wrap)
+				
+				
 	
 ################################################################################
-## pseudo-classes ##############################################################
+## Pseudo-classes ##############################################################
+## a.k.a functions that textually look like classes, but aren't.               #
 ################################################################################
+
 
 def Color(r,g,b,a=-1):
 	if a==-1: return makecol(r,g,b)
 	return makeacol(r,g,b,a)
+
+def HSVColor(h,s,v,a=-1):
+	r,g,b=hsvRgb(h,s,v)
+	return Color(r,g,b,a)
