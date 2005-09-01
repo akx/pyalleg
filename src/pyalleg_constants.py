@@ -2,6 +2,11 @@
 WINDOWED=0
 FULLSCREEN=1
 
+# Color depths
+DESKTOP=-2
+BEST=-1
+DONTSET=0
+
 
 # Key modifiers.
 SHIFT=0x1

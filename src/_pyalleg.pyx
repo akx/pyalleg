@@ -8,16 +8,26 @@ PyAlleg: http://www.devever.net/akx/pyalleg/
 
 PyAlleg is Copyright (c) 2005 AKX <theakx.tk>
 
-This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any
+damages arising from the use of this software.
 
-Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+Permission is granted to anyone to use this software for any
+purpose, including commercial applications, and to alter it and
+redistribute it freely, subject to the following restrictions:
 
-    1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
-    2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
-    3. This notice may not be removed or altered from any source distribution.
+  1. The origin of this software must not be misrepresented;
+     you must not claim that you wrote the original software.
+     If you use this software in a product, an acknowledgment
+     in the product documentation would be appreciated but
+     is not required.
+  2. Altered source versions must be plainly marked as such,
+     and must not be misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source
+     distribution.
+
 """
 
-import time
 
 cdef extern from "allegro.h":
 	###################################
@@ -106,6 +116,9 @@ cdef extern from "allegro.h":
 	int cpu_capabilities
 	
 	int allegro_init()
+	int install_allegro(int system_id, int *errno_ptr, int *atexit_ptr)
+	int errno
+	int SYSTEM_AUTODETECT
 	void allegro_exit()
 	void set_window_title(char *name)
 	int desktop_color_depth ()
@@ -172,6 +185,7 @@ cdef extern from "allegro.h":
 	void destroy_gfx_mode_list(GFX_MODE_LIST *gfx_mode_list)
 	void set_color_depth (int depth)
 	int get_color_depth ()
+	void set_color_conversion(int mode)
 	void request_refresh_rate (int rate)
 	int get_refresh_rate ()
 	int set_gfx_mode (int card, int w, int h, int v_w, int v_h)
@@ -356,10 +370,19 @@ cdef extern from "allegro.h":
 	
 	int COLORCONV_TOTAL
 
-version="-- unknown --"
-wrapperVersion="0.1.2"
+cdef extern from "bonus.h":
+	void initLoaders()
+	void _loadAnim(char *f)
+	void _freeAnim()
+	BITMAP **animFrames
+	int *animDura
+	int animCount
 
-
+version="(not initialized yet)"
+wrapperVersion="0.1.3"
+inited=0
+sc=None
+debugmode=0
 
 # Generic error in the wrapper.
 class PyallegError(Exception):
@@ -374,9 +397,15 @@ class AllegroError(PyallegError):
 class WrapperError(PyallegError):
 	pass
 	
-def debug(s): print "(pyalleg debug): "+s
+def debug(s):
+	global debugmode
+	if debugmode:
+		print "(PyAlleg Debug) "+s
 
-sc=None
+def setDebug(flag):
+	global debugmode
+	debugmode=flag
+
 cdef public int nMouseB
 
 
@@ -393,58 +422,79 @@ cdef public int nMouseB
 
 cdef class AbstractBitmap:
 	""" Base class for all bitmaps. Contains operations you do on bitmaps.
-	You do not have to worry about cleaning memory, unless you really want to, or don't trust the Python garbage collection system. If you DO destroy() a Bitmap object, though, you WILL crash your application if you try to do anything with it.
-	
-	"""
+	You do not have to worry about cleaning memory, unless you really want to,
+	or don't trust the Python garbage collection system. If you DO destroy()
+	a Bitmap object, though, you WILL crash your application if you try to
+	do anything with it. """
 	cdef BITMAP *bmp
 	
 	def destroy(self):
+		""" Destroy the Allegro bitmap.
+		This destroys the Allegro bitmap associated with this bitmap object,
+		thus rendering this object useless. Any further methods will probably
+		crash your program. """
 		if self.bmp!=NULL:
 			debug("Destroying "+str(self))
 			destroy_bitmap(self.bmp)
 			self.bmp=NULL
 	
 	def clear(self):
+		""" Clears the bitmap to black. """
 		clear_bitmap(self.bmp)
 
 	def clearTo(self,color):
+		""" Fills the bitmap with the specified color. """
 		clear_to_color(self.bmp,color)
 		
 	def size(self):
+		""" Returns the width and height of the bitmap as a tuple. """
 		return self.bmp.w,self.bmp.h
 
 	def putPixel(self,x,y,c):
+		""" Sets the color of the specified pixel to the specified color. """
 		putpixel(self.bmp,x,y,c)
 
 	def getPixel(self,x,y):
+		""" Returns the color of the specified pixel. """
 		return getpixel(self.bmp,x,y)
 		
 	def hline(self,x1,y,x2,c):
+		""" Draws a horizontal line (x1,y)-(x2,y) with the specified color. """
 		hline(self.bmp,x1,y,x2,c)
 		
 	def vline(self,x,y1,y2,c):
+		""" Draws a vertical line (x,y1)-(x,y2) with the specified color. """
 		vline(self.bmp,x,y1,y2,c)
 		
 	def line(self,x1,y1,x2,y2,c):
+		""" Draws a line (x1,y1)-(x2,y2) with the specified color. """
 		line(self.bmp,x1,y1,x2,y2,c)
 		
 	def fastline(self,x1,y1,x2,y2,c):
+		""" Draws a non-pixel-perfect line (x1,y1)-(x2,y2) with the specified color. """
 		fastline(self.bmp,x1,y1,x2,y2,c)
 	
 	def rect(self,x1,y1,x2,y2,c):
+		""" Draws the outlines of a rectangle enclosing (x1,y1)-(x2,y2) with the specified color. """
 		rect(self.bmp,x1,y1,x2,y2,c)
 	
 	def fillRect(self,x1,y1,x2,y2,c):
+		""" Fills the rectangle enclosing (x1,y1)-(x2,y2) with the specified color. """
 		rectfill(self.bmp,x1,y1,x2,y2,c)
 		
 	def rectfill(self,x1,y1,x2,y2,c):
-		rectfill(self.bmp,x1,y1,x2,y2,c)
+		""" Alias for fillRect. """
+		self.fillRect(x1,y1,x2,y2,c)
 		
 	
 	def triangle(self,x1,y1,x2,y2,x3,y3,c):
+		""" Fills the triangle (x1,y1)-(x2,y2)-(x3,y3) with the specified color. """
 		triangle(self.bmp,x1,y1,x2,y2,x3,y3,c)
 		
 	def polygon(self,lpoints,c):
+		""" Fills the polygon (x1,y1)-(x...,y...) with the specified color.
+		The points should be a sequence of tuples. The current maximum number for points is 500.
+		"""
 		cdef int points[1000]
 		l=len(lpoints)
 		if l>500: l=500
@@ -454,55 +504,66 @@ cdef class AbstractBitmap:
 		polygon(self.bmp,l,points,c)
 	
 	def circle(self,x,y,r,c):
+		""" Draws the outlines of a circle inside (x-r,y-r)-(x+r,y+r) with the specified color. """
 		circle(self.bmp,x,y,r,c)
 	
 	def fillCircle(self,x,y,r,c):
+		""" Fills a circle inside (x-r,y-r)-(x+r,y+r) with the specified color. """
 		circlefill(self.bmp,x,y,r,c)
 		
 	def circlefill(self,x,y,r,c):
-		circlefill(self.bmp,x,y,r,c)
+		""" Alias for fillCircle. """
+		self.fillCircle(x,y,r,c)
 
 	def ellipse(self,x,y,rx,ry,c):
+		""" Draws the outlines of an elliptical region inside (x-rx,y-ry)-(x+rx,y+ry) with the specified color. """
 		ellipse(self.bmp,x,y,rx,ry,c)
 	
 	def fillEllipse(self,x,y,rx,ry,c):
+		""" Fills an elliptical region inside (x-rx,y-ry)-(x+rx,y+ry) with the specified color. """
 		ellipsefill(self.bmp,x,y,rx,ry,c)
 
 	def ellipsefill(self,x,y,rx,ry,c):
+		""" Alias for fillEllipse. """
 		ellipsefill(self.bmp,x,y,rx,ry,c)
 	
 	
-	def blit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,w=-1,h=-1):	
+	def blit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,w=-1,h=-1):
+		""" Blits (draws) the bitmap on the destination bitmap. """
 		if w>-1:	rw,rh=w,h
-		else:		rw,rh=self.size()
+		else:		rw,rh=self.size()[:2]
 			
 		blit(self.bmp, dest.bmp, sx, sy, dx, dy, rw,rh)
 
 	def maskedBlit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,w=-1,h=-1):	
+		""" Blits (draws) the bitmap on the destination bitmap, ignoring the mask color. """
 		if w>-1:	rw,rh=w,h
-		else:		rw,rh=self.size()
+		else:		rw,rh=self.size()[:2]
 			
 		masked_blit(self.bmp, dest.bmp, sx, sy, dx, dy, rw,rh)
 
-	def stretchBlit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,srcw=-1,srch=-1,dw=-1,dh=-1):	
+	def stretchBlit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,srcw=-1,srch=-1,dw=-1,dh=-1):
+		""" Blits (draws) a stretched version of the bitmap on the destination bitmap. """
 		if srcw>-1:	sw,sh=srcw,srch
-		else:		srcw,srch=self.size()
+		else:		sw,sh=self.size()[:2]
 		
 		if dw>-1:	destw,desth=dw,dh
 		else:		destw,desth=srcw,srch
 			
-		stretch_blit (self.bmp, dest.bmp, sx, sy, sw, sh, destx, desty, dw, dh)
+		stretch_blit (self.bmp, dest.bmp, sx, sy, sw, sh, dx, dy, dw, dh)
 
 	def maskedStretchBlit(self,AbstractBitmap dest,dx=0,dy=0,sx=0,sy=0,srcw=-1,srch=-1,dw=-1,dh=-1):
+		""" Blits (draws) a stretched version of the bitmap on the destination bitmap, ignoring the mask color. """
 		if srcw>-1:	sw,sh=srcw,srch
-		else:		srcw,srch=self.size()
+		else:		sw,sh=self.size()[:2]
 		
 		if dw>-1:	destw,desth=dw,dh
 		else:		destw,desth=srcw,srch
 			
-		masked_stretch_blit (self.bmp, dest.bmp, sx, sy, sw, sh, destx, desty, dw, dh)
+		masked_stretch_blit (self.bmp, dest.bmp, sx, sy, sw, sh, dx, dy, dw, dh)
 	
 	def drawSprite(self,AbstractBitmap dest,x,y,flips=0,w=-1,h=-1):
+		""" Draws, stretches or flips the bitmap on the destination bitmap, ignoring the mask color. Faster than maskedBlit()."""
 		if w>-1:
 			stretch_sprite (dest.bmp, self.bmp, x, y, w, h)
 		else:
@@ -518,15 +579,19 @@ cdef class AbstractBitmap:
 				raise WrapperError,"Illegal flipping mode, 0-3 are legal."
 				
 	def drawTransSprite(self,AbstractBitmap dest,x,y):
+		""" Draws the bitmap on the destination bitmap, considering the blender mode. """
 		draw_trans_sprite (dest.bmp, self.bmp, x, y)
 		
 	def drawLitSprite(self,AbstractBitmap dest,x,y, light):
+		""" Draws the bitmap on the destination bitmap, shading it by /light/. """
 		draw_lit_sprite (dest.bmp, self.bmp, x, y, light)
 	
 	def drawGouraudSprite(self,AbstractBitmap dest,x,y,l1,l2,l3,l4):
+		""" Draws the bitmap on the destination bitmap, shading it by /l1,l2,l3,l4/ (corners). """
 		draw_gouraud_sprite (dest.bmp, self.bmp, x, y,l1,l2,l3,l4)
 	
 	def rotateSprite(self,AbstractBitmap dest,x,y,angle,scale=1.0,vflip=0):
+		""" Draws a rotated version the bitmap on the destination bitmap, optionally scaling or flipping it and ignoring the mask color. """
 		cdef fixed fangle,fscale
 		fangle=ftofix(angle)
 		if scale==1.0:
@@ -542,6 +607,7 @@ cdef class AbstractBitmap:
 				rotate_scaled_sprite(dest.bmp,self.bmp,x,y,fangle,fscale)
 	
 	def pivotSprite(self,AbstractBitmap dest,x,y,px,py,angle,scale=1.0,vflip=0):
+		""" Draws a rotated and pivoted version the bitmap on the destination bitmap, optionally scaling or flipping it and ignoring the mask color. """
 		cdef fixed fangle,fscale
 		fangle=ftofix(angle)
 		if scale==1.0:
@@ -557,6 +623,7 @@ cdef class AbstractBitmap:
 				pivot_scaled_sprite(dest.bmp,self.bmp,x,y,px,py,fangle,fscale)
 					
 	def save(self,filename):
+		""" Saves the bitmap to the specified file. """
 		if save_bitmap(filename,self.bmp,NULL)!=0:
 			raise AllegroError()
 	
@@ -576,7 +643,8 @@ cdef class Bitmap(AbstractBitmap):
 	def __dealloc__(self):
 		if self.bmp!=NULL:
 			debug("Deallocating bitmap: "+str(self))
-			allegro_init()	# ugly-ish kludge.. *shrug*
+			if version=="":
+				init()
 			destroy_bitmap(self.bmp)
 		else:
 			debug("Bitmap already deallocated: "+str(self))
@@ -588,10 +656,43 @@ cdef class FileBitmap(AbstractBitmap):
 		self.bmp=load_bitmap(filename,NULL)
 		if self.bmp==NULL:
 			raise AllegroError()
-		
+			
+cdef class AnimBitmap(AbstractBitmap):
+	def __new__(self,bmp):
+		self.bmp=<BITMAP *>bmp
+
+class Animation:
+	def __init__(self,filename):
+		self.frames=[]
+		self.duration=0
+		self._load(filename)
+
+	def _load(self,filename):
+		cdef BITMAP* frame
+		debug("Loading animation "+filename)
+		_loadAnim(filename)
+		if animCount==0:
+			_freeAnim()
+			raise WrapperError("Could not load animation")
+		else:
+			debug("Frame count: %d"%animCount)
+			totalDura=0
+			for i from 0<=i<animCount:
+				frame=animFrames[i]
+				dura=animDura[i]
+				totalDura=totalDura+dura
+				newBmp=AnimBitmap(<object>frame)
+				self.frames.append((newBmp,dura))
+			self.duration=totalDura
+			_freeAnim()
+
 			
 def loadBitmap(filename):
 	return FileBitmap(filename)
+	
+def loadAnim(filename):
+	return Animation(filename)
+
 
 cdef class ScreenBitmap(AbstractBitmap):
 	def __new__(self):
@@ -627,7 +728,7 @@ cdef class Font:
 	def __dealloc__(self):
 		if self.f!=NULL and self.f!=font:
 			debug("Deallocating font: "+str(self))
-			allegro_init()
+			#allegro_init()
 			destroy_font(self.f)
 
 	def draw(self,AbstractBitmap dest,x,y,c,text,mode=0,bg=-1):
@@ -668,8 +769,19 @@ cdef class Sample:
 		if self.sample==NULL:
 			raise AllegroError
 	
+	def __dealloc__(self):
+		if self.sample!=NULL:
+			debug("Deallocating sample: "+str(self))
+			destroy_sample(self.sample)
+	
 	def length(self):
 		return self.sample.len/float(self.sample.freq)
+		
+	def __len__(self):
+		return self.sample.len
+		
+	def freq(self):
+		return self.sample.freq
 
 	def play(self,loop=0,vol=255,pan=0,freq=1000):
 		play_sample(self.sample,vol,pan+127,freq,loop)
@@ -684,26 +796,11 @@ cdef class Sample:
                               ## Timers ##
                               ############
 
-def getTime():
-	return time.clock()
-	
-def delay(t):
-	now=getTime()
-	while (getTime()-now)<=t:
-		pass
+## As of 0.1.2.7, the FPSTimer class is in pyalleg_extras.py.
 
-class FPSTimer:
-	def __init__(self,fps=50.0):
-		self.lastTick=getTime()
-		self.n=0
-		self.fps=float(fps)
-		
-	def tick(self):
-		ifps=1.0/self.fps
-		nt=getTime()
-		d=ifps-(nt-self.lastTick)
-		delay(d)
-		self.lastTick=nt
+def delay(msec):
+	rest(msec)
+
 		
 ###############################################################################
 ###############################################################################
@@ -712,17 +809,25 @@ class FPSTimer:
 ###############################################################################
 
 def exit():
+	global version,inited
+	debug("Exiting PyAlleg...")
 	allegro_exit()
+	inited=0
+	version=""
+	
 
 def init():
 	import atexit
 	global version
-	if allegro_init()!=0:
-		raise AllegroError()
-	version=allegro_id+" (PyAlleg "+wrapperVersion+")"
-	debug("Initialized: "+version)
-	atexit.register(exit)
+	global inited
+	if not inited:
+		if install_allegro(SYSTEM_AUTODETECT, &errno, NULL)!=0:
+			raise AllegroError()
+		version=allegro_id+" (PyAlleg "+wrapperVersion+")"
+		debug("Initialized: "+version)
+		atexit.register(exit)
 	return version
+	
 
 def setWindowTitle(text):
 	set_window_title(text)
@@ -744,9 +849,29 @@ def initMouse():
 def initGfx(m,w,h,d=-1,vw=0,vh=0):
 	global sc
 	debug("Beginning graphics initialization...")
-	if d==-1:
-		d=desktop_color_depth()
-	set_color_depth(d)
+	if d!=0:
+		if d==-2: # Desktop depth.
+			d=desktop_color_depth()
+			
+		if d==-1: # Find best depth.
+			depths=[32,24,16,15]
+			if m==0: # Windowed mode likes desktop depth.
+				depths[0:0]=[-2]
+				
+			while len(depths)>0:
+				dp=depths.pop(0)
+				try:
+					initGfx(m,w,h,dp,vw,vh)
+					if dp==-2:
+						dp=desktop_color_depth()
+					return dp
+				except:
+					pass
+			raise WrapperError("Could not find a suitable color depth.")
+				
+		set_color_depth(d)
+		
+		
 	if m==0:	# Windowed
 		if set_gfx_mode (2,w,h,vw,vh)<0:
 			raise AllegroError()
@@ -754,7 +879,12 @@ def initGfx(m,w,h,d=-1,vw=0,vh=0):
 		if set_gfx_mode (1,w,h,vw,vh)<0:
 			raise AllegroError()
 	else:
-		raise WrapperError("Unknown graphics mode. Valid values are 0 and 1.")
+		raise WrapperError("Unknown graphics mode. Valid values are 0 (windowed) and 1 (fullscreen).")
+	set_color_conversion(COLORCONV_TOTAL)
+	
+	debug("Initializing additional loaders.")
+	initLoaders()
+	
 	debug("Finished graphics init.")
 	if sc==None:
 		debug("Creating screen wrapper object.")
@@ -768,7 +898,9 @@ def initSound():
 		raise AllegroError()
 	
 def getScreen():
-	return sc
+	if sc!=None:
+		return sc
+	raise WrapperError("Graphics haven't been initialized yet!")
 	
 def getFont():
 	return Font()
@@ -827,7 +959,7 @@ def mickeys():
 	
 def drawMode(mode, AbstractBitmap pattern=None, x=0,y=0):
 	if mode>=0 and mode<6:
-		if pattern!=None:
+		if pattern!=None and isinstance(pattern,AbstractBitmap) and pattern.bmp!=NULL:
 			drawing_mode(mode,pattern.bmp,x,y)
 		else:
 			drawing_mode(mode,NULL,0,0)
@@ -852,6 +984,9 @@ def hsvRgb(h,s,v):
 	cdef int r,g,b
 	hsv_to_rgb(h,s,v,&r,&g,&b)
 	return (r,g,b)
+	
+def getRgb(c):
+	return (getr(c),getg(c),getb(c))
 
 def setBlender(blender,a=255,r=255,g=255,b=255):
 	if blender=="alpha":		set_alpha_blender()
@@ -880,95 +1015,6 @@ def setAdd(a):
 	setBlender("add",a)
 	transMode()
 
-
-
-##############################################################################
-                              ## XColor ##
-                              ############
-                              
-def __wrap(val,mi,ma):
-	while val<mi:
-		val=ma+val
-	while val>ma:
-		val=val-ma
-	return val
-	
-def __clamp(val,mi,ma):
-	if val<mi: return mi
-	if val>ma: return ma
-	return val
-class XColor:
-	def __init__(self,r=0,g=0,b=0):
-		self.r=r
-		self.g=g
-		self.b=b
-		
-	def getColor(self):
-		return Color(self.r,self.g,self.b)
-	
-	def copy(self):
-		return XColor(self.r,self.g,self.b)
-	
-	def unpack(self,color):
-		self.r=getr(color)
-		self.g=getg(color)
-		self.b=getb(color)
-		return self
-		
-	def set(self,r,g,b):
-		self.r=r
-		self.g=g
-		self.b=b
-		return self
-		
-	def setHsv(self,h,s,v):
-		self.unpack(HSVColor(h,s,v))
-		return self
-		
-	def getHsv(self):
-		return rgbHsv(self.r,self.g,self.b)
-	
-	def shift(self,pairs,gwrap=0):
-		for pair in pairs:
-			what=pair[0]
-			value=pair[1]
-			if len(pair)==3:
-				wrap=pair[2]
-			else:
-				wrap=gwrap
-			if what=="hue":
-				h,s,v=self.getHsv()
-				h=h+value
-				if wrap==1:   h=__wrap(h,0,360)
-				elif wrap==2: h=__clamp(h,0,360)
-				self.setHsv(h,s,v)
-			if what=="sat":
-				h,s,v=self.getHsv()
-				s=s+value
-				if wrap==1:   s=__wrap(s,0,1)
-				elif wrap==2: s=__clamp(s,0,1)
-				self.setHsv(h,s,v)
-			if what=="val":
-				h,s,v=self.getHsv()
-				v=v+value
-				if wrap==1:   v=__wrap(v,0,1)
-				elif wrap==2: v=__clamp(v,0,1)
-				self.setHsv(h,s,v)
-			if what=="r":
-				self.r=self.r+value
-				if wrap==1:   self.r=__wrap(self.r,0,255)
-				elif wrap==2: self.r=__clamp(self.r,0,255)
-			if what=="g":
-				self.g=self.g+value
-				if wrap==1:   self.g=__wrap(self.g,0,255)
-				elif wrap==2: self.g=__clamp(self.g,0,255)
-			if what=="b":
-				self.b=self.b+value
-				if wrap==1:   self.b=__wrap(self.b,0,255)
-				elif wrap==2: self.b=__clamp(self.b,0,255)
-		return self
-	def shift1(self,what,value,wrap=0):
-		return self.shift([(what,value,wrap)],wrap)
 				
 				
 	

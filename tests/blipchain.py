@@ -24,7 +24,7 @@ from pyalleg import *
 import math,random
 import time
 
-pov=0.8
+pov=0.1
 sw,sh=640,480
 np=400
 
