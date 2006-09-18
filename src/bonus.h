@@ -46,3 +46,19 @@ void _freeAnim()
 	free(animDura);
 	free(animFrames);
 }
+
+void* _getWindow()
+{
+	#ifdef WIN32
+	  return (void*)win_get_window();
+	#else
+	  return NULL;
+	#endif
+}
+
+void _setWindow(void *p)
+{
+	#ifdef WIN32
+	  win_set_window(p);
+	#endif
+}

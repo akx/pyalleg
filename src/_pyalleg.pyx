@@ -148,6 +148,8 @@ cdef extern from "allegro.h":
 	void select_mouse_cursor (int cursor)
 	int show_os_cursor (int cursor)
 	void get_mouse_mickeys (int *mickeyx, int *mickeyy)
+	void enable_hardware_cursor()
+	void disable_hardware_cursor()
 	
 	# Timers are omitted, except for rest.
 	void rest(int tyme)
@@ -404,12 +406,16 @@ cdef extern from "bonus.h":
 	int alfont_text_height(ALFONT_FONT *f)
 	int alfont_text_length(ALFONT_FONT *f, char *str)
 	
+	void *_getWindow()
+	void _setWindow(void *p)
+	
 	
 version="(not initialized yet)"
-wrapperVersion="0.1.3.6-b"
+wrapperVersion="0.1.3.6-e"
 inited=0
 sc=None
 debugmode=0
+#nMouseB=0
 
 # Generic error in the wrapper.
 class PyallegError(Exception):
@@ -663,6 +669,39 @@ cdef class AbstractBitmap:
 		get_clip_rect(self.bmp,&x1,&y1,&x2,&y2)
 		return (x1,y1,x2,y2)
 	
+	def fromRGBData(self,size,data):
+		cdef int w,h,x,y,off,yo,r,g,b
+		w,h=size
+		yo=0
+		if len(data)!=w*h:
+			raise PyallegError,"RGB data length mismatch. Expected %d, got %d."%(w*h,len(data))
+		acquire_bitmap(self.bmp)
+		for y from 0 <= y < h:
+			for x from 0 <= x < w:
+				r,g,b=data[yo+x]
+				putpixel(self.bmp,x,y,makecol(r,g,b))
+			yo=yo+w
+		release_bitmap(self.bmp)
+	
+	def fromPData(self,size,data):
+		cdef int w,h,x,y,off,yo,c
+		w,h=size
+		yo=0
+		if len(data)!=w*h:
+			raise PyallegError,"P data length mismatch. Expected %d, got %d."%(w*h,len(data))
+		acquire_bitmap(self.bmp)
+		for y from 0 <= y < h:
+			for x from 0 <= x < w:
+				c=data[yo+x]
+				putpixel(self.bmp,x,y,makecol(c,c,c))
+			yo=yo+w
+		release_bitmap(self.bmp)		
+			
+	def acquire(self):
+		acquire_bitmap(self.bmp)
+		
+	def release(self):
+		release_bitmap(self.bmp)			
 
 		
 		
@@ -879,7 +918,7 @@ cdef class AlFont:
 
 		
 def loadFont(filename):
-	if filename.endswith(".ttf"):
+	if filename[-3:].lower()=="ttf":
 		return AlFont(filename)
 	else:
 		return Font(filename)
@@ -971,12 +1010,15 @@ def initKeyboard():
 		raise AllegroError()
 		
 def initMouse():
+	global nMouseB
 	debug("Initializing mouse...")
 	install_timer()
 	mb=install_mouse()
 	if mb<0:
 		raise AllegroError()
-	if mb>0: nMouseB=mb
+	if mb>0:
+		nMouseB=mb
+		return mb
 		
 def initGfx(m,w,h,d=-1,vw=0,vh=0):
 	global sc
@@ -1037,7 +1079,7 @@ def getScreen():
 
 	
 def gfxInited():
-	return (sc!=None)
+	return bool(sc)
 	
 def getFont():
 	return Font()
@@ -1049,6 +1091,9 @@ def keyDown(int k):
 	
 def keyPressed():
 	return keypressed()
+	
+def readKey():
+	return readkey()
 	
 def keyMods():
 	return key_shifts
@@ -1079,6 +1124,9 @@ def setHwCursor(mode):
 		enable_hardware_cursor()
 	else:
 		disable_hardware_cursor()
+		
+def showOsCursor(cursor):
+	return show_os_cursor(cursor)
 	
 def setMouseCursor(cursor,AbstractBitmap bmp=None):
 	if cursor>=0:
@@ -1088,10 +1136,13 @@ def setMouseCursor(cursor,AbstractBitmap bmp=None):
 	
 def showMouse(AbstractBitmap bmp):
 	show_mouse(bmp.bmp)
+	
 def hideMouse():
 	show_mouse(NULL)
+	
 def scareMouse():
 	scare_mouse()
+	
 def unscareMouse():
 	unscare_mouse()
 
@@ -1110,13 +1161,13 @@ def drawMode(mode, AbstractBitmap pattern=None, x=0,y=0):
 		raise WrapperError("Invalid drawing mode, valid values are 0-5.")
 
 def solidMode():
-	drawMode(0)
+	drawing_mode(0,NULL,0,0)
 	
 def xorMode():
-	drawMode(1)
+	drawing_mode(1,NULL,0,0)
 	
 def transMode():
-	drawMode(5)
+	drawing_mode(5,NULL,0,0)
 
 def rgbHsv(r,g,b):
 	cdef float h,s,v
@@ -1151,14 +1202,22 @@ def setBlender(blender,a=255,r=255,g=255,b=255):
 		raise WrapperError("Invalid blender, check the blenders table in constants.")
 
 def setTrans(a):
-	setBlender("trans",a)
-	transMode()
+	set_trans_blender(255,255,255,a)
+	drawing_mode(5,NULL,0,0)
 
 def setAdd(a):
-	setBlender("add",a)
-	transMode()
+	set_add_blender(255,255,255,a)
+	drawing_mode(5,NULL,0,0)
+	
+def setAlpha():
+	set_alpha_blender()
+	drawing_mode(5,NULL,0,0)
 
-				
+def getWindowHandle():
+	return <long>_getWindow()
+
+def setWindowHandle(addr):
+	_setWindow(<void*><long>addr)
 				
 	
 ################################################################################
