@@ -24,7 +24,7 @@ h2
  border-bottom:1px solid #000
 }
 </style>
-<h1>PyAlleg 0.1.3</h1>
+<h1>PyAlleg 0.1.3.6-b</h1>
 <h2>What is..?</h2>
 <p>A wrapper for the Allegro library for Python.</p>
 <h2>Setup instructions</h2>
@@ -37,25 +37,18 @@ h2
 <p>Thanks to the efforts of Michael Faerber, PyAlleg is now Distutils compliant. That means you should be able to install it with</p>
 <pre>
 <code>
-python setup.py build_ext <i>--compiler=mingw32</i>
+python setup.py build_ext
 python setup.py install
 </code>
 </pre>
-(The compiler part may or may not be unnecessary.)<br />
-<b>0.1.2:</b> The build_mgw.bat does exactly that.
+<i>build_mgw.bat</i> can/should be used to build PyAlleg under <a href="http://www.mingw.org">MingW</a>.
 <h2>What do I need to distribute Pyalleg programs?</h2>
 <p>The Distutils dependency tracker should know what. Additionally your users need alleg42.dll on Windows, or the appropriate libraries on other platforms.</p>
 <h2>Test programs</h2>
 <p>There are multiple test programs packaged with PyAlleg. (In order of writing.)</p>
 <ul>
-	<li>test_putpixel.py<br />
-	The first ever test program. Plots some pixels on the screen. IRC Chat transcript after the first run of test_putpixel.py:
-	<pre>&lt;AKX&gt; OMFG
-&lt;AKX&gt; \O/
-&lt;AKX&gt; IT FUCKING WORKS
-&lt;AKX&gt; W00T!
-&lt;AKX&gt; *victory-dance*
-&lt;SpeaK&gt; o/ congrats!</pre>
+<li>test_putpixel.py<br />
+The first ever test program. Plots some pixels on the screen.
 </li>
 <li>test_lineofsight.py<br />
 Testing the Polygon function.
@@ -64,10 +57,64 @@ Testing the Polygon function.
 Polygon, rectangles, blenders, sound, classes, text output, mouse.
 </li>
 <li>blipchain.py<br />
-PyAlleg's first Official Demo Gamelet<sup>TM</sup>.
+PyAlleg's first Official Demo Gamelet.
 </li>
 <li>test_load.py<br />
 Loading bitmaps and fonts. Also demonstrates the new XColor class.
 </li>
+<li>test_mandel.py<br />
+Uses Python's complex number class for the famous Mandelbrot fractal.
+</li>
+<li>test_mandel.py<br />
+Uses Python's complex number class for the famous Mandelbrot fractal.
+</li>
+<li>SpaceWarp.py<br />
+PyAlleg's second Official Demo Gamelet.
+</li>
+<li>nodes.py<br />
+Um.. yes.
+</li>
+<li>poolball.py<br />
+Pool ball simulation, following Hugo Elias's tutorial.
+</li>
+<li>warper.py<br />
+Remember that Microsoft screensaver?
+</li>
+<li>fillers.py<br />
+More or less interesting filler algorithms.
+</li>
+<li>laser.py<br />
+Faking a bouncing ray using getpixel.
+</li>
+<li>test_ttf.py<br />
+Tests TTF loading using FreeType2.
+</li>
+<li>spacef.py<br />
+Generates fancy desktop wallpapers. :)
+</li>
+</ul>
+<h2>License</h2>
+PyAlleg has a zlib/libpng style license.
+<pre>
+PyAlleg is Copyright (c) 2005 AKX <theakx.tk>
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any
+damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any
+purpose, including commercial applications, and to alter it and
+redistribute it freely, subject to the following restrictions:
+
+  1. The origin of this software must not be misrepresented;
+     you must not claim that you wrote the original software.
+     If you use this software in a product, an acknowledgment
+     in the product documentation would be appreciated but
+     is not required.
+  2. Altered source versions must be plainly marked as such,
+     and must not be misrepresented as being the original software.
+  3. This notice may not be removed or altered from any source
+     distribution.
+</pre>
 </body>
 </html>

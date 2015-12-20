@@ -5,6 +5,7 @@
  */
 
 
+#define PNG_SETJMP_NOT_SUPPORTED
 #include <png.h>
 #include <allegro.h>
 #include <allegro/internal/aintern.h>
@@ -275,6 +276,7 @@ BITMAP *load_png(AL_CONST char *filename, RGB *pal)
 	return NULL;
     }
 
+
     /* Allocate/initialize the memory for image information. */
     info_ptr = png_create_info_struct(png_ptr);
     if (!info_ptr) {
@@ -283,17 +285,20 @@ BITMAP *load_png(AL_CONST char *filename, RGB *pal)
 	return NULL;
     }
 
-    /* Set error handling if you are using the setjmp/longjmp method (this is
-     * the normal method of doing things with libpng).  REQUIRED unless you
-     * set up your own error handlers in the png_create_read_struct() earlier.
-     */
-    if (setjmp(png_ptr->jmpbuf)) {
-	/* Free all of the memory associated with the png_ptr and info_ptr */
-	png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
-	pack_fclose(fp);
-	/* If we get here, we had a problem reading the file */
-	return NULL;
-    }
+	// XXX: Added by AKX.
+	#ifndef PNG_SETJMP_NOT_SUPPORTED
+		/* Set error handling if you are using the setjmp/longjmp method (this is
+		 * the normal method of doing things with libpng).  REQUIRED unless you
+		 * set up your own error handlers in the png_create_read_struct() earlier.
+		 */
+		if (setjmp(png_ptr->jmpbuf)) {
+		/* Free all of the memory associated with the png_ptr and info_ptr */
+		png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
+		pack_fclose(fp);
+		/* If we get here, we had a problem reading the file */
+		return NULL;
+		}
+    #endif
 
     /* Use Allegro packfile routines. */
     png_set_read_fn(png_ptr, fp, (png_rw_ptr)read_data);
@@ -386,12 +391,14 @@ BITMAP *load_memory_png(AL_CONST void *buffer, int bufsize, RGB *pal)
      * the normal method of doing things with libpng).  REQUIRED unless you
      * set up your own error handlers in the png_create_read_struct() earlier.
      */
+    #ifndef PNG_SETJMP_NOT_SUPPORTED
     if (setjmp(png_ptr->jmpbuf)) {
 	/* Free all of the memory associated with the png_ptr and info_ptr */
 	png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
 	/* If we get here, we had a problem reading the file */
 	return NULL;
     }
+    #endif
 
     /* Set up the reader state. */
     memory_reader_state.buffer = buffer;
@@ -409,6 +416,6 @@ BITMAP *load_memory_png(AL_CONST void *buffer, int bufsize, RGB *pal)
 
     /* Clean up after the read, and free any memory allocated. */
     png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
-    
+
     return bmp;
 }

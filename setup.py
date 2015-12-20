@@ -12,12 +12,15 @@ if sys.argv[1]=='mingw_build':
 else:
 	lib_dirs=[]
 
+include_dirs=[]
 libraries = []
 extra_link_args = []
 
-
 print "* Adding libraries for PNG loading"
 libraries.extend(['png','z'])
+print "* Adding libraries for TTF loading (FreeType)"
+libraries.extend(['freetype'])
+
 
 if sys.platform == 'win32':
         print "* Using Windows library set"
@@ -39,6 +42,8 @@ else:
                         if d[:2] == '-L': lib_dirs.append(d[2:])
                         elif d[:2] == '-l': libraries.append(d[2:])
                         else: extra_link_args.append(d)
+        print "* Adding assumed FT2 path"
+        include_dirs.append("/usr/include/freetype2")
                         
 print "* Library set: "+", ".join(libraries)
 
@@ -51,7 +56,7 @@ setup(
    package_dir={'pyalleg' : 'src'},
    packages=['pyalleg'],
    ext_modules=[ 
-      Extension("_pyalleg", ["src/_pyalleg.pyx"], library_dirs = lib_dirs, libraries = libraries, extra_link_args = extra_link_args)
+      Extension("_pyalleg", ["src/_pyalleg.pyx"], library_dirs = lib_dirs, libraries = libraries, extra_link_args = extra_link_args, include_dirs = include_dirs)
    ],
    cmdclass = {'build_ext': build_ext}
 )

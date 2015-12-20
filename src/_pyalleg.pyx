@@ -101,6 +101,7 @@ cdef extern from "allegro.h":
 	ctypedef struct FONT:
 		pass
 
+
 	# Config routines omitted.
 	
 	char *allegro_id
@@ -199,6 +200,7 @@ cdef extern from "allegro.h":
 	int save_bitmap (char *filename, BITMAP *bmp, RGB *pal)
 	void destroy_bitmap (BITMAP *bitmap)
 	void set_clip_rect (BITMAP *bitmap, int x1, int y_1, int x2, int y2)
+	void get_clip_rect(BITMAP *bitmap, int *x1, int *y1, int *x2, int *y2)
 	void clear_bitmap (BITMAP *bitmap)
 	void clear_to_color (BITMAP *bitmap, int color)
 	void vsync ()
@@ -372,14 +374,39 @@ cdef extern from "allegro.h":
 
 cdef extern from "bonus.h":
 	void initLoaders()
+	void exitLoaders()
 	void _loadAnim(char *f)
 	void _freeAnim()
 	BITMAP **animFrames
 	int *animDura
 	int animCount
+	
+	ctypedef struct ALFONT_FONT:
+		int face_h
+		int real_face_h
+		int face_ascender
+	
+	void alfont_set_char_extra_spacing(ALFONT_FONT *f, int spacing)
+	int *alfont_get_available_fixed_sizes(ALFONT_FONT *f)
+	int alfont_set_font_size(ALFONT_FONT *f, int h)
+	void alfont_destroy_font(ALFONT_FONT *f)
+	ALFONT_FONT *alfont_load_font(char *filepathname)
+	
+	void alfont_textout_aa_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
+	void alfont_textout_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
 
+	void alfont_textout_centre_aa_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
+	void alfont_textout_centre_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
+
+	void alfont_textout_right_aa_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
+	void alfont_textout_right_ex(BITMAP *bmp, ALFONT_FONT *f, char *s, int x, int y, int color, int bg)
+	
+	int alfont_text_height(ALFONT_FONT *f)
+	int alfont_text_length(ALFONT_FONT *f, char *str)
+	
+	
 version="(not initialized yet)"
-wrapperVersion="0.1.3"
+wrapperVersion="0.1.3.6-b"
 inited=0
 sc=None
 debugmode=0
@@ -408,6 +435,7 @@ def setDebug(flag):
 
 cdef public int nMouseB
 
+import atexit
 
 
 ###############################################################################
@@ -626,6 +654,14 @@ cdef class AbstractBitmap:
 		""" Saves the bitmap to the specified file. """
 		if save_bitmap(filename,self.bmp,NULL)!=0:
 			raise AllegroError()
+			
+	def setClip(self,x1,y1,x2,y2):
+		set_clip_rect(self.bmp,x1,y1,x2,y2)
+	
+	def getClip(self):
+		cdef int x1,y1,x2,y2
+		get_clip_rect(self.bmp,&x1,&y1,&x2,&y2)
+		return (x1,y1,x2,y2)
 	
 
 		
@@ -710,6 +746,27 @@ cdef class ScreenBitmap(AbstractBitmap):
 	def release(self):
 		release_screen()
 
+cdef class DoubleBuffer(AbstractBitmap):
+	def __new__(self):
+		debug("Creating double buffer")
+		w,h=sc.size()[:2]
+		self.bmp=create_bitmap(w,h)
+		if self.bmp==NULL:
+			raise AllegroError()
+
+	def __dealloc__(self):
+		if self.bmp!=NULL:
+			debug("Deallocating bitmap: "+str(self))
+			if version=="":
+				init()
+			destroy_bitmap(self.bmp)
+		else:
+			debug("Bitmap already deallocated: "+str(self))
+			
+	def flip(self):
+		self.blit(sc)
+
+
 ##############################################################################
                                ## Font ##
                                ##########
@@ -720,6 +777,7 @@ cdef class Font:
 	def __new__(self,filename=""):
 		if filename!="":
 			self.f=load_font(filename,NULL,NULL)
+			debug("Loading font "+filename)
 			if self.f==NULL:
 				raise AllegroError()
 		else:
@@ -752,9 +810,79 @@ cdef class Font:
 
 	def width(self,text):
 		return text_length(self.f,text)
+
+cdef class AlFont:
+	cdef ALFONT_FONT *f
+	
+	def __new__(self,filename="",size=20):
+		debug("Creating AlFont: %s @ %d"%(filename,size))
+		self.f=alfont_load_font(filename)
+		if self.f==NULL:
+			raise WrapperError("Alfont could not load the font.")
+		alfont_set_font_size(self.f,size)
+	
+	def __dealloc__(self):
+		
+		if self.f!=NULL:
+		# For some reason debug b0rks in AlFonts. No idea why.
+		#	debug("Deallocating AlFont "+str(self))
+			alfont_destroy_font(self.f)
+			self.f=NULL
+		#else:
+		#	debug("AlFont already deallocated: "+str(self))
+			
+	def setSize(self,size):
+		alfont_set_font_size(self.f,size)
+		
+	def getSizes(self):
+		cdef int *my_font_sizes
+		my_font_sizes=alfont_get_available_fixed_sizes(self.f)
+		sizes=[]
+		i=0
+		while 1:
+			if my_font_sizes[i]==-1:
+				break
+			sizes.append(my_font_sizes[i])
+		return sizes
+		
+	def setSpacing(self,l):
+		alfont_set_char_extra_spacing(self.f,l)
+
+	def draw(self,AbstractBitmap dest,x,y,c,text,mode=0,bg=-1,antialias=0):
+		if antialias:
+			if mode==0:	# Left.
+				alfont_textout_aa_ex(dest.bmp,self.f,text,x,y,c,bg)
+			elif mode==1:	# Center.
+				alfont_textout_centre_aa_ex(dest.bmp,self.f,text,x,y,c,bg)
+			elif mode==2:	# Right.
+				alfont_textout_right_aa_ex(dest.bmp,self.f,text,x,y,c,bg)
+			else:
+				raise WrapperError("Invalid font drawing mode (0-2).")		
+		else:
+			if mode==0:	# Left.
+				alfont_textout_ex(dest.bmp,self.f,text,x,y,c,bg)
+			elif mode==1:	# Center.
+				alfont_textout_centre_ex(dest.bmp,self.f,text,x,y,c,bg)
+			elif mode==2:	# Right.
+				alfont_textout_right_ex(dest.bmp,self.f,text,x,y,c,bg)
+			else:
+				raise WrapperError("Invalid font drawing mode (0-2).")
+	def height(self):
+		return alfont_text_height(self.f)
+
+	def length(self,text):
+		return alfont_text_length(self.f,text)
+
+	def width(self,text):
+		return alfont_text_length(self.f,text)
+
+
 		
 def loadFont(filename):
-	return Font(filename)
+	if filename.endswith(".ttf"):
+		return AlFont(filename)
+	else:
+		return Font(filename)
 
 ##############################################################################
                               ## Sound ##
@@ -811,21 +939,25 @@ def delay(msec):
 def exit():
 	global version,inited
 	debug("Exiting PyAlleg...")
+	exitLoaders()
 	allegro_exit()
 	inited=0
 	version=""
+	debug("Exit finished.")
 	
 
 def init():
-	import atexit
 	global version
 	global inited
 	if not inited:
+		debug("Initializing Allegro...")
 		if install_allegro(SYSTEM_AUTODETECT, &errno, NULL)!=0:
 			raise AllegroError()
 		version=allegro_id+" (PyAlleg "+wrapperVersion+")"
 		debug("Initialized: "+version)
 		atexit.register(exit)
+	else:
+		debug("Not reinitializing Allegro")
 	return version
 	
 
@@ -901,6 +1033,11 @@ def getScreen():
 	if sc!=None:
 		return sc
 	raise WrapperError("Graphics haven't been initialized yet!")
+
+
+	
+def gfxInited():
+	return (sc!=None)
 	
 def getFont():
 	return Font()
@@ -915,6 +1052,12 @@ def keyPressed():
 	
 def keyMods():
 	return key_shifts
+
+def keyShifts():
+	return key_shifts
+
+def clearKeybuf():
+	clear_keybuf()
 
 def mouseX():
 	return mouse_x

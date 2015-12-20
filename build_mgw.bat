@@ -2,7 +2,7 @@
 echo ================================================================
 echo Building PyAlleg (MingW32)
 echo ================================================================
-python setup.py mingw_build build_ext --compiler=mingw32
+python setup.py mingw_build build --compiler=mingw32
 if %ERRORLEVEL%==1 goto cerror
 
 

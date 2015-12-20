@@ -23,14 +23,14 @@ class FPSTimer:
                               ## XColor ##
                               ############
                               
-def __wrap(val,mi,ma):
+def _wrap(val,mi,ma):
 	while val<mi:
 		val=ma+val
 	while val>ma:
 		val=val-ma
 	return val
 	
-def __clamp(val,mi,ma):
+def _clamp(val,mi,ma):
 	if val<mi: return mi
 	if val>ma: return ma
 	return val
@@ -73,33 +73,33 @@ class XColor:
 			if what=="hue":
 				h,s,v=self.getHsv()
 				h=h+value
-				if wrap==1:   h=__wrap(h,0,360)
-				elif wrap==2: h=__clamp(h,0,360)
+				if wrap==1:   h=_wrap(h,0,360)
+				elif wrap==2: h=_clamp(h,0,360)
 				self.setHsv(h,s,v)
 			if what=="sat":
 				h,s,v=self.getHsv()
 				s=s+value
-				if wrap==1:   s=__wrap(s,0,1)
-				elif wrap==2: s=__clamp(s,0,1)
+				if wrap==1:   s=_wrap(s,0,1)
+				elif wrap==2: s=_clamp(s,0,1)
 				self.setHsv(h,s,v)
 			if what=="val":
 				h,s,v=self.getHsv()
 				v=v+value
-				if wrap==1:   v=__wrap(v,0,1)
-				elif wrap==2: v=__clamp(v,0,1)
+				if wrap==1:   v=_wrap(v,0,1)
+				elif wrap==2: v=_clamp(v,0,1)
 				self.setHsv(h,s,v)
 			if what=="r":
 				self.r=self.r+value
-				if wrap==1:   self.r=__wrap(self.r,0,255)
-				elif wrap==2: self.r=__clamp(self.r,0,255)
+				if wrap==1:   self.r=_wrap(self.r,0,255)
+				elif wrap==2: self.r=_clamp(self.r,0,255)
 			if what=="g":
 				self.g=self.g+value
-				if wrap==1:   self.g=__wrap(self.g,0,255)
-				elif wrap==2: self.g=__clamp(self.g,0,255)
+				if wrap==1:   self.g=_wrap(self.g,0,255)
+				elif wrap==2: self.g=_clamp(self.g,0,255)
 			if what=="b":
 				self.b=self.b+value
-				if wrap==1:   self.b=__wrap(self.b,0,255)
-				elif wrap==2: self.b=__clamp(self.b,0,255)
+				if wrap==1:   self.b=_wrap(self.b,0,255)
+				elif wrap==2: self.b=_clamp(self.b,0,255)
 		return self
 	def shift1(self,what,value,wrap=0):
 		return self.shift([(what,value,wrap)],wrap)

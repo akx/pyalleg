@@ -10,3 +10,10 @@ const=constants
 
 # Import extra classes.
 from pyalleg_extras import *
+
+# Import the event handling module
+import pyalleg_events as events
+
+# Import the rectangle module
+import pyalleg_rect as rect
+Rect=rect.Rect

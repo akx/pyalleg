@@ -136,13 +136,16 @@ int save_png(AL_CONST char *filename, BITMAP *bmp, AL_CONST RGB *pal)
 	return -1;
     }
 
-    /* Set error handling. */
-    if (setjmp(png_ptr->jmpbuf)) {
-	/* If we get here, we had a problem reading the file. */
-	pack_fclose(fp);
-	png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
-	return -1;
-    }
+	// XXX: Added by AKX.
+	#ifdef PNG_SETJMP_SUPPORTED
+		/* Set error handling. */
+		if (setjmp(png_ptr->jmpbuf)) {
+		/* If we get here, we had a problem reading the file. */
+		pack_fclose(fp);
+		png_destroy_write_struct(&png_ptr, (png_infopp)NULL);
+		return -1;
+		}
+	#endif
 
     /* Use packfile routines. */
     png_set_write_fn(png_ptr, fp, (png_rw_ptr)write_data, flush_data);

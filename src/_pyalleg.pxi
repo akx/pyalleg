@@ -1,1 +1,0 @@
-cdef extern int nMouseB
